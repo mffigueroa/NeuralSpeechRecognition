@@ -88,7 +88,7 @@ while True:
     if os.path.isfile(model_save_path):
         continue
     
-    model = LSTM_LanguageModel(random_embedding_size, random_hidden_size, max_word_id, lm_min_word_id, num_lstm_layers=random_num_lstm_layers)
+    model = LSTM_LanguageModel(random_embedding_size, random_hidden_size, lm_min_word_id, max_word_id, num_lstm_layers=random_num_lstm_layers)
     model.cuda()    
     
     loss_function = nn.NLLLoss()
@@ -153,7 +153,7 @@ while True:
             log_file.write(f'{epoch+1},{avg_train_loss.cpu().numpy()},{train_perplexity.cpu().numpy()},{avg_valid_loss.cpu().numpy()},{valid_perplexity.cpu().numpy()}\n')
             log_file.flush()
             
-        sampled_sentence_tokens = model.sample_from_model(train_dataset.vocabulary, max_sequence_length)
+        sampled_sentence_tokens = model.sample_from_model(max_sequence_length)
         sampled_sentence_tokens_str = ','.join(map(str, sampled_sentence_tokens))
         sampled_sentence = train_dataset.vocabulary.tokens_to_sentence(sampled_sentence_tokens)
         model_samples_file.write(f'Epoch{epoch}\nTokens\n{sampled_sentence_tokens_str}\nWords\n{sampled_sentence}\n\n')

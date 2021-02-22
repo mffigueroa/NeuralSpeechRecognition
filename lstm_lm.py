@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 
 class LSTM_LanguageModel(nn.Module):
-    def __init__(self, embedding_dim, hidden_dim, max_word_id, min_output_word_id, num_lstm_layers=None):
+    def __init__(self, embedding_dim, hidden_dim, min_output_word_id, max_word_id, num_lstm_layers=None):
         super(LSTM_LanguageModel, self).__init__()
         if num_lstm_layers is None:
             num_lstm_layers = 1
@@ -12,14 +12,14 @@ class LSTM_LanguageModel(nn.Module):
         self.hidden_dim = hidden_dim
         self.max_word_id = max_word_id
         self.min_output_word_id = min_output_word_id
-        self.word_embeddings = nn.Embedding(self.max_word_id, embedding_dim)
+        self.word_embeddings = nn.Embedding(self.max_word_id + 1, embedding_dim, padding_idx=0) # inputs range from [0, self.max_word_id]
         
         # The LSTM takes word embeddings as inputs, and outputs hidden states
         # with dimensionality hidden_dim.
         self.lstm = nn.LSTM(embedding_dim, hidden_dim, num_layers=self.num_lstm_layers)
         
         # The linear layer that maps from hidden state space to word space
-        self.hidden2word = nn.Linear(hidden_dim, self.max_word_id - self.min_output_word_id + 1)
+        self.hidden2word = nn.Linear(hidden_dim, self.max_word_id - self.min_output_word_id + 1) # outputs range from [self.min_output_word_id, self.max_word_id]
     
     def forward(self, sentence, previous_state=None):
         embeds = self.word_embeddings(sentence)
@@ -28,7 +28,9 @@ class LSTM_LanguageModel(nn.Module):
         else:
             lstm_out, last_lstm_state = self.lstm(embeds, previous_state)
         word_space = self.hidden2word(lstm_out.view(-1, self.hidden_dim))
-        word_scores = F.log_softmax(word_space.view(*lstm_out.size()[:-1], -1), dim=2)
+        batch_size = lstm_out.size()[0]
+        sequence_length = lstm_out.size()[1]
+        word_scores = F.log_softmax(word_space.view(batch_size, sequence_length, -1), dim=2)
         if previous_state is None:
             return word_scores
         else:
@@ -43,7 +45,7 @@ class LSTM_LanguageModel(nn.Module):
         model_output = model_output.cpu().numpy()
         return model_output, lstm_state
     
-    def sample_from_model(self, vocab, max_length, beam_width=None):
+    def sample_from_model(self, max_length, beam_width=None):
         from vocabulary import VocabularySpecialWords
         
         beam_width = beam_width or 10

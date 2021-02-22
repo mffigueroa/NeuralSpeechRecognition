@@ -64,6 +64,7 @@ class LSTM_LanguageModel(nn.Module):
                 sentence_log_probabilities = np.empty((0,))
                 next_token_samples = np.empty((0,), dtype=np.int64)
                 beam_index_for_sample = np.empty((0,), dtype=np.int64)
+                
                 for beam_index in range(len(beam_states)):
                     sentence_last_token = beam_sentences[beam_index][-1]
                     if sentence_last_token == VocabularySpecialWords.STOP.value:
@@ -110,8 +111,6 @@ class LSTM_LanguageModel(nn.Module):
                 max_probability_sampled_sentence_index = np.argmax(beam_sentence_log_probabilities)
                 last_token_for_max_probability_sentence = beam_sentences[max_probability_sampled_sentence_index][-1]
                 if last_token_for_max_probability_sentence == VocabularySpecialWords.STOP.value:
-                    if beam_sentences[max_probability_sampled_sentence_index][-1] != VocabularySpecialWords.STOP.value:
-                        import pdb; pdb.set_trace()
                     return beam_sentences[max_probability_sampled_sentence_index]
         
         max_log_probability_sentence = beam_sentences[np.argmax(beam_sentence_log_probabilities)]

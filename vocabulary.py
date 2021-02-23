@@ -15,6 +15,7 @@ class Vocabulary(object):
         self.word_to_id = {}
         self.id_to_word = {}
         self.word_id_after_unking = {}
+        self.word_id_from_remapped_word_id = {}
         special_symbol_ids = [e.value for e in VocabularySpecialWords]
         self.min_known_word_id = max(special_symbol_ids) + 1
         self.next_id_to_assign = self.min_known_word_id
@@ -49,6 +50,7 @@ class Vocabulary(object):
         known_word_ids = map(self.word_to_id.get, known_words)
         remapped_word_ids = range(self.min_known_word_id, self.min_known_word_id+len(known_words))
         self.word_id_after_unking = dict(zip(known_word_ids, remapped_word_ids))
+        self.word_id_from_remapped_word_id = { v : k for k,v in self.word_id_after_unking.items() }
         assert min(self.word_id_after_unking.values()) == self.min_known_word_id and max(self.word_id_after_unking.values()) == self.get_max_word_id()
         
     def get_word_id(self, word):
@@ -64,8 +66,8 @@ class Vocabulary(object):
         return remapped_word_id
     
     def get_word_from_id(self, id):
-        if id in self.id_to_word:
-            return self.id_to_word[id]
+        if id in self.word_id_from_remapped_word_id:
+            return self.id_to_word[self.word_id_from_remapped_word_id[id]]
         elif id == VocabularySpecialWords.START.value:
             return '[START]'
         elif id == VocabularySpecialWords.STOP.value:

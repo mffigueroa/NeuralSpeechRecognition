@@ -6,8 +6,8 @@ from text_tokenizer import tokenize_line
 parser = argparse.ArgumentParser(description='Process text file from Gutenberg Dataset to produce a set of corpus sequences.')
 parser.add_argument('gutenberg_dir', help='Path to Gutenberg dataset folder containing .txt files')
 parser.add_argument('output_path', help='Path to output corpus sequences text file')
-parser.add_argument('--max_sequence_length', help='Maximum tokens per sequence', default=50)
-parser.add_argument('--sequence_stride', help='Stride to next token sequence', default=5)
+parser.add_argument('--max_sequence_length', help='Maximum tokens per sequence', default=50, type=int)
+parser.add_argument('--sequence_stride', help='Stride to next token sequence', default=5, type=int)
 args = parser.parse_args()
 
 txt_files = os.listdir(args.gutenberg_dir)

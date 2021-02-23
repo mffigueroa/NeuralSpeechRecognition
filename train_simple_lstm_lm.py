@@ -26,8 +26,8 @@ parser.add_argument('valid_dataset', help='Path to processed train dataset file'
 parser.add_argument('--vocab_unk_rate', help='UNKing rate to use for vocabulary, by default will use true UNK rate based on validation set OOV rate', default=-1.0)
 args = parser.parse_args()
 
-n_epochs = 1000
-train_samples_per_epoch = 100#10000
+n_epochs = 100
+train_samples_per_epoch = 10000
 valid_samples_per_epoch = 1000
 batch_size = 4
 max_sequence_length = 50
@@ -55,19 +55,19 @@ train_dataloader = DataLoader(train_dataset, batch_size=batch_size, sampler=trai
 valid_sampler = RandomSampler(valid_dataset, replacement=True, num_samples=valid_samples_per_epoch)
 valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, sampler=valid_sampler, num_workers=0)
 
+'''
 num_layers = np.arange(1,2)
 embedding_sizes = np.arange(16, 64)
 hidden_sizes = np.arange(16, 64)
 learning_rates = 10.**np.arange(-5,-1)
 hyperparameters_tried = set()
-
 '''
+
 num_layers = np.arange(5,10)
 embedding_sizes = np.arange(64, 128)
 hidden_sizes = np.arange(64, 128)
 learning_rates = 10.**np.arange(-5,-1)
 hyperparameters_tried = set()
-'''
 
 logfile_prefix = os.path.splitext(args.log_file)[0]
 logfile_dir = os.path.dirname(args.log_file)
@@ -152,8 +152,9 @@ while True:
             valid_perplexity = 2.0 ** (total_valid_loss / valid_number_of_words)
             log_file.write(f'{epoch+1},{avg_train_loss.cpu().numpy()},{train_perplexity.cpu().numpy()},{avg_valid_loss.cpu().numpy()},{valid_perplexity.cpu().numpy()}\n')
             log_file.flush()
-            
-        sampled_sentence_tokens = model.sample_from_model(max_sequence_length)
+        
+        sampling_beam_width = min(10, max_sequence_length)
+        sampled_sentence_tokens = model.sample_from_model(max_sequence_length, beam_width=sampling_beam_width)
         sampled_sentence_tokens_str = ','.join(map(str, sampled_sentence_tokens))
         sampled_sentence = train_dataset.vocabulary.tokens_to_sentence(sampled_sentence_tokens)
         model_samples_file.write(f'Epoch{epoch}\nTokens\n{sampled_sentence_tokens_str}\nWords\n{sampled_sentence}\n\n')

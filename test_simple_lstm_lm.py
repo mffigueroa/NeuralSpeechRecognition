@@ -43,25 +43,33 @@ parser = argparse.ArgumentParser(description='Train a simple LSTM language model
 parser.add_argument('weights_file', help='Path to model weights file')
 parser.add_argument('train_dataset', help='Path to processed train dataset file')
 parser.add_argument('valid_dataset', help='Path to processed train dataset file')
+parser.add_argument('--vocab_unk_rate', help='UNKing rate to use for vocabulary, by default will use true UNK rate based on validation set OOV rate', default=-1.0)
 args = parser.parse_args()
 
 train_dataset = TextDataset(args.train_dataset, 50)
 valid_dataset = TextDataset(args.valid_dataset, 50)
 
+if args.vocab_unk_rate == -1.0:
+    train_dataset.unk_vocabulary_with_true_oov_rate(valid_dataset)
+elif args.vocab_unk_rate > 0:
+    train_dataset.unk_vocabulary_with_oov_rate(args.vocab_unk_rate)
+valid_dataset.use_vocabulary_from_dataset(train_dataset)
+
 dataset_transformer = transforms.Compose([Seq2Seq(), ToTensor()])
 train_dataset.set_transform(dataset_transformer)
 valid_dataset.set_transform(dataset_transformer)
 
-vocabulary_size = train_dataset.vocabulary.get_max_word_id()
+max_word_id = train_dataset.vocabulary.get_max_word_id()
+lm_min_word_id = train_dataset.vocabulary.get_min_valid_lm_output_word_id()
 
 model_attributes = get_model_attributes_from_weights_filename(args.weights_file)
-model = LSTM_LanguageModel(model_attributes['embedding'], model_attributes['hidden'], vocabulary_size, num_lstm_layers=model_attributes['layers'])
+model = LSTM_LanguageModel(model_attributes['embedding'], model_attributes['hidden'], lm_min_word_id, max_word_id, num_lstm_layers=model_attributes['layers'])
 model.load_state_dict(torch.load(args.weights_file))
 model.eval()
 model.train(False)
 model.cuda()
 
 for _ in range(10):
-    sampled_tokens = model.sample_from_model(train_dataset.vocabulary, 50)
+    sampled_tokens = model.sample_from_model(50)
     sampled_sentence = train_dataset.vocabulary.tokens_to_sentence(sampled_tokens)
     print(sampled_sentence)

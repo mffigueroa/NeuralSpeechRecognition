@@ -11,7 +11,7 @@ class TextDataset(Dataset):
     def __init__(self, sequence_list_file, expected_sequence_length, transform=None):
         self.sequence_list_file = sequence_list_file
         sequence_list_file_dir = os.path.dirname(self.sequence_list_file)
-        sequence_list_file_prefix = os.path.splitext(sequence_list_file)[0]
+        sequence_list_file_prefix = os.path.splitext(self.sequence_list_file)[0]
         pickle_file_name = f'{sequence_list_file_prefix}_TextDataset.pickle'
         pickle_file_path = os.path.join(sequence_list_file_dir, pickle_file_name)
         self.sequence_list_fileobj = open(self.sequence_list_file, 'r', encoding='utf-8')

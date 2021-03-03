@@ -4,6 +4,7 @@ import os
 import pickle
 from text_tokenizer import tokenize_line
 from audio_to_mfcc import audio_file_to_spectrogram
+from tqdm import tqdm
 
 def get_librispeech_files(folder):
     transcription_for_folder = {}
@@ -29,7 +30,7 @@ transcription_for_folder, audio_files_in_folder = get_librispeech_files(args.lib
 
 transcription_for_audio_file = {}
 transcription_file_offset_for_audio_file = {}
-for folder, transcription_file in transcription_for_folder.items():
+for folder, transcription_file in tqdm(transcription_for_folder.items()):
     for audio_file in audio_files_in_folder[folder]:
         transcription_for_audio_file[audio_file] = transcription_file
     with open(transcription_file, 'r') as transcription_file_obj:
@@ -49,8 +50,7 @@ for folder, transcription_file in transcription_for_folder.items():
 
 audio_spectrograms = []
 transcription_tokens = []
-file_num = 0
-for audio_file, transcription in transcription_for_audio_file.items():
+for audio_file, transcription in tqdm(transcription_for_audio_file.items()):
     with open(transcription, 'r') as transcription_file_obj:
         transcription_file_offset = transcription_file_offset_for_audio_file[audio_file]
         transcription_file_obj.seek(transcription_file_offset)
@@ -59,11 +59,8 @@ for audio_file, transcription in transcription_for_audio_file.items():
         spectrogram = audio_file_to_spectrogram(audio_file, frame_size=0.09)
         transcription_tokens.append(tokens)
         audio_spectrograms.append(spectrogram)
-        print(spectrogram.shape)
-        file_num += 1
-        if file_num > 10:
-            break
 
 sequence_data = { 'audio_spectrograms' : audio_spectrograms, 'transcription_tokens' : transcription_tokens }
 with open(args.output_path, 'wb') as output_file:
     pickle.dump(sequence_data, output_file)
+

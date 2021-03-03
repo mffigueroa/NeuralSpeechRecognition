@@ -11,7 +11,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, RandomSampler
 from torchvision import transforms, utils
 from text_dataset import TextDataset
-from torch_transforms import Seq2Seq, ToTensor, OneHotSeq2SeqTarget
+from torch_transforms import Seq2Seq, ToTensor, RemapUsingMinWordID
 
 from lstm_lm import LSTM_LanguageModel
 from tqdm import tqdm
@@ -22,13 +22,13 @@ np.random.seed(1234)
 parser = argparse.ArgumentParser(description='Train a simple LSTM language model.')
 parser.add_argument('log_file', help='Path to output log file')
 parser.add_argument('train_dataset', help='Path to processed train dataset file')
-parser.add_argument('valid_dataset', help='Path to processed train dataset file')
+parser.add_argument('valid_dataset', help='Path to processed validation dataset file')
 parser.add_argument('--vocab_unk_rate', help='UNKing rate to use for vocabulary, by default will use true UNK rate based on validation set OOV rate', default=-1.0)
 args = parser.parse_args()
 
-n_epochs = 100
-train_samples_per_epoch = 10000
-valid_samples_per_epoch = 1000
+n_epochs = 1000
+train_samples_per_epoch = 1000
+valid_samples_per_epoch = 100
 batch_size = 4
 max_sequence_length = 50
 
@@ -46,7 +46,7 @@ vocabulary_size = train_dataset.vocabulary.get_vocab_size()
 valid_dataset.use_vocabulary_from_dataset(train_dataset)
 print(f'Vocabulary Size: {vocabulary_size}')
 
-dataset_transformer = transforms.Compose([Seq2Seq(lm_min_word_id), ToTensor()])
+dataset_transformer = transforms.Compose([Seq2Seq(), RemapUsingMinWordID('target',lm_min_word_id), ToTensor()])
 train_dataset.set_transform(dataset_transformer)
 valid_dataset.set_transform(dataset_transformer)
 
@@ -89,7 +89,7 @@ while True:
         continue
     
     model = LSTM_LanguageModel(random_embedding_size, random_hidden_size, lm_min_word_id, max_word_id, num_lstm_layers=random_num_lstm_layers)
-    model.cuda()    
+    model.cuda()
     
     loss_function = nn.NLLLoss()
     optimizer = optim.Adam(model.parameters(), lr=random_learning_rate)
@@ -146,7 +146,7 @@ while True:
                 perplexity = 2.0 ** (total_valid_loss / valid_number_of_words)
                 
                 batches_loop.set_description('Validation Epoch {}/{}'.format(epoch + 1, n_epochs))
-                batches_loop.set_postfix(loss=loss.item(), perplexity=perplexity.item())
+                batches_loop.set_postfix(loss=f'{loss.item():.2f}', perplexity=f'{perplexity.item():.4f}')
             
             avg_valid_loss = total_valid_loss / valid_number_of_words
             valid_perplexity = 2.0 ** (total_valid_loss / valid_number_of_words)

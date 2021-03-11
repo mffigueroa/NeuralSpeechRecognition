@@ -23,13 +23,17 @@ def audio_file_to_mfcc(file_path, frame_size=None, frame_stride=None, mean_norma
         mfcc_normed = mfcc - mfcc_mean
         return mfcc_normed
 
-def audio_file_to_spectrogram(file_path, frame_size=None, frame_stride=None, mean_normalized=None, num_filters=None):
+def audio_file_to_spectrogram(file_path, frame_size=None, frame_stride=None, mean_normalized=None, num_filters=None, resampling_rate=None):
     mean_normalized = mean_normalized or True
     frame_size = frame_size or 0.025 # 25 ms windows, aka window length
     frame_stride = frame_stride or (frame_size / 2.5) # 10 ms window stride, aka hop_length
     num_filters = num_filters or 40
     
     signal_y, sample_rate = librosa.load(file_path)
+    signal_length = signal_y.shape[0] / sample_rate
+    if resampling_rate is not None:
+        signal_y = librosa.resample(signal_y, sample_rate, resampling_rate)
+        sample_rate = signal_y.shape[0] / signal_length
     
     win_length = np.round(frame_size * sample_rate).astype(np.int32)
     hop_length = np.round(frame_stride * sample_rate).astype(np.int32)
@@ -37,6 +41,8 @@ def audio_file_to_spectrogram(file_path, frame_size=None, frame_stride=None, mea
     signal_y_preem = librosa.effects.preemphasis(signal_y)
     
     spectrogram = librosa.feature.melspectrogram(y=signal_y_preem, sr=sample_rate, win_length=win_length, hop_length=hop_length, n_mels=num_filters, window='hamming')
+    total_frames = spectrogram.shape[1]
+    effective_frames_per_second = total_frames / signal_length
     if not mean_normalized:
         return spectrogram
     else:

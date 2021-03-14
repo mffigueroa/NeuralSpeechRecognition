@@ -16,6 +16,7 @@ from speech_dataset import SpeechDataset
 from torch_transforms import DeleteSequencePrefix, ToTensor, RemapUsingMinWordID, PadSequencesCollater
 
 from conv_lstm_am import ConvLSTM_AcousticModel
+from resnet_lstm_am import ResNetLSTM_AcousticModel
 from vocabulary import VocabularySpecialWords
 from tqdm import tqdm
 
@@ -31,10 +32,10 @@ parser.add_argument('lm_valid_dataset', help='Path to processed language model t
 parser.add_argument('--vocab_unk_rate', help='UNKing rate to use for vocabulary, by default will use true UNK rate based on validation set OOV rate', default=-1.0)
 args = parser.parse_args()
 
-n_epochs = 1000
+n_epochs = 50#1000
 train_samples_per_epoch = 1000
 valid_samples_per_epoch = 100
-batch_size = 4
+batch_size = 2
 max_sequence_length = 50
 
 lm_train_dataset = TextDataset(args.lm_train_dataset, max_sequence_length)
@@ -74,11 +75,11 @@ valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, sampler=vali
 
 spectogram_num_filters = 40
 
-num_lstm_layers = np.arange(1,2)
-num_conv_blocks = np.arange(2,4)
-num_conv_layers_per_block = np.arange(1,2)
+num_lstm_layers = np.arange(1,5)
+num_conv_blocks = np.arange(0,1) #np.arange(2,4)
+num_conv_layers_per_block = np.arange(1,4)
 hidden_sizes = np.arange(16, 64)
-learning_rates = 10.**np.arange(-5,-1)
+learning_rates = 10.**np.arange(-5,-2)
 hyperparameters_tried = set()
 
 logfile_prefix = os.path.splitext(args.log_file)[0]
@@ -88,26 +89,27 @@ while True:
     random_hidden_size = np.random.choice(hidden_sizes)
     random_learning_rate = np.random.choice(learning_rates)
     random_num_lstm_layers = np.random.choice(num_lstm_layers)
-    random_num_conv_blocks = np.random.choice(num_conv_blocks)
-    random_num_conv_layers_per_block = np.random.choice(num_conv_layers_per_block)
-    hyperparameter_combo = (random_hidden_size, random_learning_rate, random_num_lstm_layers, random_num_conv_blocks, random_num_conv_layers_per_block)
+    #random_num_conv_blocks = np.random.choice(num_conv_blocks)
+    #random_num_conv_layers_per_block = np.random.choice(num_conv_layers_per_block)
+    hyperparameter_combo = (random_hidden_size, random_learning_rate, random_num_lstm_layers)#, random_num_conv_blocks, random_num_conv_layers_per_block)
     if hyperparameter_combo in hyperparameters_tried:
         continue
     hyperparameters_tried.add(hyperparameter_combo)
     
-    total_conv_layers = random_num_conv_blocks*random_num_conv_layers_per_block
-    model_suffix = f'hidden_{random_hidden_size}_lr_{random_learning_rate}_lstm_layers_{random_num_lstm_layers}_conv_layers_{total_conv_layers}'
+    #total_conv_layers = random_num_conv_blocks*random_num_conv_layers_per_block
+    model_suffix = f'hidden_{random_hidden_size}_lr_{random_learning_rate}_lstm_layers_{random_num_lstm_layers}_resnet18'
     model_save_name = f'model_{model_suffix}.pth'
     model_save_path = os.path.join(logfile_dir, model_save_name)
     if os.path.isfile(model_save_path):
         continue
     
-    model = ConvLSTM_AcousticModel(random_hidden_size, spectogram_num_filters, lm_min_word_id, max_word_id,
-        num_lstm_layers=random_num_lstm_layers, num_conv_blocks=random_num_conv_blocks,
-        num_conv_layers_per_block=random_num_conv_layers_per_block)
+    model = ResNetLSTM_AcousticModel(random_hidden_size, spectogram_num_filters, lm_min_word_id, max_word_id,
+        num_lstm_layers=random_num_lstm_layers, bottleneck_size=0)
     model.cuda()
+    model_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f'\n\nTotal Parameters: {model_total_params}\n\n' + str(model))
     
-    loss_function = nn.CTCLoss()
+    loss_function = nn.CTCLoss(zero_infinity=True)
     optimizer = optim.Adam(model.parameters(), lr=random_learning_rate)
     
     logfile_path = f'{logfile_prefix}_{model_suffix}.txt'
@@ -115,7 +117,6 @@ while True:
     model_samples_filepath = f'{logfile_prefix}_output_samples_{model_suffix}.txt'
     model_samples_file = open(model_samples_filepath, 'w')
     
-    model_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     log_file.write(f'Model Total Parameters: {model_total_params}\n')
     log_file.write(f'Epoch #,Train Average Loss,Validation Average Loss\n')
     log_file.flush()
@@ -134,7 +135,7 @@ while True:
             
             word_scores = model(model_inputs)
             ctc_loss_input_length_dim = word_scores.size()[0]
-            ctc_loss_input_length = torch.LongTensor([ctc_loss_input_length_dim]).repeat(4).cuda()
+            ctc_loss_input_length = torch.LongTensor([ctc_loss_input_length_dim]).repeat(batch_size).cuda()
             
             loss = loss_function(word_scores, model_targets, ctc_loss_input_length, model_target_lengths)
             loss.backward()
@@ -171,7 +172,7 @@ while True:
                 
                 word_scores = model(model_inputs)
                 ctc_loss_input_length_dim = word_scores.size()[0]
-                ctc_loss_input_length = torch.LongTensor([ctc_loss_input_length_dim]).repeat(4).cuda()
+                ctc_loss_input_length = torch.LongTensor([ctc_loss_input_length_dim]).repeat(batch_size).cuda()
                 
                 loss = loss_function(word_scores, model_targets, ctc_loss_input_length, model_target_lengths)
                 

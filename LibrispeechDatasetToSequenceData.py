@@ -25,6 +25,7 @@ parser = argparse.ArgumentParser(description='Process text and speech files from
 parser.add_argument('librispeech_dir', help='Path to LibriSpeech dataset folder with subfolders containing speech and transcription files')
 parser.add_argument('output_path', help='Path to output corpus sequences data file')
 parser.add_argument('--frames_per_second', help='Used to calculate the proper sampling rate and windowing parameters', type=float)
+parser.add_argument('--show_length_histogram', help='Show histogram of transcription and spectrogram sequence lengths', action='store_true')
 args = parser.parse_args()
 
 transcription_for_folder, audio_files_in_folder = get_librispeech_files(args.librispeech_dir)
@@ -49,12 +50,17 @@ for folder, transcription_file in tqdm(transcription_for_folder.items()):
             transcription_file_offset = file_offset + len(audio_file_id) + 1
             transcription_file_offset_for_audio_file[audio_filepath] = transcription_file_offset
 
-samples_per_frame = 2048
-frame_window_to_stride_ratio =  1 / 2.5
-
-sampling_rate = (args.frames_per_second - 2.5) * samples_per_frame * frame_window_to_stride_ratio + samples_per_frame
-frame_size = samples_per_frame / sampling_rate
-frame_stride = frame_size * frame_window_to_stride_ratio
+if args.frames_per_second is not None:
+    samples_per_frame = 2048
+    frame_window_to_stride_ratio =  1 / 2.5
+    
+    sampling_rate = (args.frames_per_second - 2.5) * samples_per_frame * frame_window_to_stride_ratio + samples_per_frame
+    frame_size = samples_per_frame / sampling_rate
+    frame_stride = frame_size * frame_window_to_stride_ratio
+else:
+    sampling_rate = None
+    frame_size = None
+    frame_stride = None
 
 audio_spectrograms = []
 transcription_tokens = []
@@ -69,6 +75,20 @@ for audio_file, transcription in tqdm(transcription_for_audio_file.items()):
         audio_spectrograms.append(spectrogram)
 
 sequence_data = { 'audio_spectrograms' : audio_spectrograms, 'transcription_tokens' : transcription_tokens }
+
+if args.show_length_histogram:
+    import matplotlib.pyplot as plt
+    audio_spectrogram_lengths = [ spectrogram.shape[1] for spectrogram in audio_spectrograms ]
+    transcription_token_lengths = [ len(transcription) for transcription in transcription_tokens ]
+    fig, axes = plt.subplots(2)
+    axes[0].set_title('Spectrogram Lengths')
+    axes[0].set_ylabel('Count')
+    axes[0].hist(audio_spectrogram_lengths)
+    axes[1].set_title('Transcription Lengths')
+    axes[1].set_ylabel('Count')
+    axes[1].hist(transcription_token_lengths)
+    plt.show()
+
 with open(args.output_path, 'wb') as output_file:
     pickle.dump(sequence_data, output_file)
 

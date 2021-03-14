@@ -51,15 +51,15 @@ class ConvLSTM_AcousticModel(nn.Module):
         # The LSTM takes CNN embeddings as inputs, and outputs hidden states
         # with dimensionality hidden_dim.
         self.lstm = nn.LSTM(output_channels, self.lstm_hidden_dim, num_layers=self.num_lstm_layers)
-        
         if self.bottleneck_size > 0:
             self.lstm2bottleneck = nn.Linear(self.lstm_hidden_dim, self.bottleneck_size)
+            bottleneck2word_input_size = self.bottleneck_size
         else:
             self.lstm2bottleneck = None
-            self.bottleneck_size = self.lstm_hidden_dim
+            bottleneck2word_input_size = self.lstm_hidden_dim
         
         # The linear layer that maps from hidden state space to word space
-        self.bottleneck2word = nn.Linear(self.bottleneck_size, self.max_word_id - self.min_output_word_id + 1) # outputs range from [self.min_output_word_id, self.max_word_id]
+        self.bottleneck2word = nn.Linear(bottleneck2word_input_size, self.max_word_id - self.min_output_word_id + 1) # outputs range from [self.min_output_word_id, self.max_word_id]
     
     def forward(self, spectral_input):
         if self.num_conv_blocks > 0:
@@ -70,6 +70,9 @@ class ConvLSTM_AcousticModel(nn.Module):
         lstm_input = torch.transpose(lstm_input, 0, 2)
         lstm_input = torch.transpose(lstm_input, 1, 2)
         lstm_out, _ = self.lstm(lstm_input)
+        batch_size = lstm_out.size()[0]
+        sequence_length = lstm_out.size()[1]
+        
         lstm_out = lstm_out.view(-1, self.lstm_hidden_dim)
         
         if self.bottleneck_size > 0:
@@ -78,7 +81,5 @@ class ConvLSTM_AcousticModel(nn.Module):
             bottleneck = lstm_out
         
         word_space = self.bottleneck2word(bottleneck)
-        batch_size = lstm_out.size()[0]
-        sequence_length = lstm_out.size()[1]
         word_scores = F.log_softmax(word_space.view(batch_size, sequence_length, -1), dim=2)
         return word_scores

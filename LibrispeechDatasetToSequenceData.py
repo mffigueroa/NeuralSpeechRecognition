@@ -3,7 +3,7 @@ import re
 import os
 import pickle
 from text_tokenizer import tokenize_line
-from audio_to_mfcc import audio_file_to_spectrogram
+from audio_to_mfcc import audio_file_to_spectrogram, audio_file_to_mfcc
 from tqdm import tqdm
 
 def get_librispeech_files(folder):
@@ -70,7 +70,7 @@ for audio_file, transcription in tqdm(transcription_for_audio_file.items()):
         transcription_file_obj.seek(transcription_file_offset)
         transcription_line = transcription_file_obj.readline()
         tokens = tokenize_line(transcription_line)
-        spectrogram = audio_file_to_spectrogram(audio_file, frame_size=frame_size, frame_stride=frame_stride, resampling_rate=sampling_rate)
+        spectrogram = audio_file_to_mfcc(audio_file, frame_size=frame_size, frame_stride=frame_stride, resampling_rate=sampling_rate)
         transcription_tokens.append(tokens)
         audio_spectrograms.append(spectrogram)
 

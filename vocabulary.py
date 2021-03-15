@@ -46,6 +46,8 @@ class Vocabulary(object):
     
     # After UNKing, ensure word IDs are in range [0, self.get_max_word_id() - 1]
     def remap_word_ids_after_unking(self):
+        if len(self.known_words) < 1:
+            self.known_words = list(self.word_to_id.keys())
         known_words = list(self.known_words)
         known_word_ids = map(self.word_to_id.get, known_words)
         remapped_word_ids = range(self.min_known_word_id, self.min_known_word_id+len(known_words))
@@ -66,6 +68,9 @@ class Vocabulary(object):
         return remapped_word_id
     
     def get_word_from_id(self, id):
+        if len(self.word_id_after_unking) < 1:
+            self.remap_word_ids_after_unking()
+        
         if id in self.word_id_from_remapped_word_id:
             return self.id_to_word[self.word_id_from_remapped_word_id[id]]
         elif id == VocabularySpecialWords.START.value:
@@ -89,13 +94,19 @@ class Vocabulary(object):
         return ' '.join(words)
         
     def get_known_words(self):
+        if len(self.word_id_after_unking) < 1:
+            self.remap_word_ids_after_unking()
         return self.known_words
     
     def get_vocab_size(self):
+        if len(self.word_id_after_unking) < 1:
+            self.remap_word_ids_after_unking()
         number_of_word_id_outputs = len(self.known_words) + 3 # include the special symbols as part of the vocabulary
         return number_of_word_id_outputs
     
     def get_max_word_id(self):
+        if len(self.word_id_after_unking) < 1:
+            self.remap_word_ids_after_unking()
         return max(self.word_id_after_unking.values())
     
     def get_min_valid_lm_output_word_id(self):

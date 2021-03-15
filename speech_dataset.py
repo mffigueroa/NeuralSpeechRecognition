@@ -8,11 +8,19 @@ from torch.utils.data import Dataset
 import numpy as np
 
 class SpeechDataset(Dataset):
-    def __init__(self, data_file, vocabulary=None, transform=None):
+    def __init__(self, data_file, character_level=None, vocabulary=None, transform=None):
         self.data_file = data_file
         self.data = pickle.load(open(self.data_file, 'rb'))
+        self.character_level = character_level
         
-        if vocabulary is None:
+        if self.character_level:
+            characters = [ chr(c) for c in range(ord('a'),ord('z')+1) ]
+            characters += [ ' ' ]
+            character_vocab = Vocabulary()
+            for character in characters:
+                character_vocab.add_word(character)
+            self.vocabulary = character_vocab
+        elif vocabulary is None:
             data_file_dir = os.path.dirname(self.data_file)
             data_file_prefix = os.path.splitext(self.data_file)[0]
             pickle_file_name = f'{data_file_prefix}_SpeechDataset.pickle'
@@ -44,6 +52,8 @@ class SpeechDataset(Dataset):
     def __getitem__(self, idx):
         words = self.data['transcription_tokens'][idx]
         spectral_features = self.data['audio_spectrograms'][idx]
+        if self.character_level:
+            words = list(' '.join(words).lower())
         sequence_words = self.vocabulary.sentence_to_tokens(words)
         sample = {'dataset_idx': np.array([idx]), 'target' : sequence_words, 'input' : spectral_features}
         if self.transform is not None:

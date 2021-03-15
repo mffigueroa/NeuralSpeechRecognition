@@ -30,27 +30,32 @@ if __name__ == '__main__':
     parser.add_argument('log_file', help='Path to output log file')
     parser.add_argument('train_dataset', help='Path to processed train dataset file')
     parser.add_argument('valid_dataset', help='Path to processed validation dataset file')
-    parser.add_argument('lm_train_dataset', help='Path to processed language model train dataset file')
-    parser.add_argument('lm_valid_dataset', help='Path to processed language model train dataset file')
+    parser.add_argument('--lm_train_dataset', help='Path to processed language model train dataset file')
+    parser.add_argument('--lm_valid_dataset', help='Path to processed language model train dataset file')
     parser.add_argument('--vocab_unk_rate', help='UNKing rate to use for vocabulary, by default will use true UNK rate based on validation set OOV rate', default=-1.0)
+    parser.add_argument('--character_level', help='Train the acoustic model at the character level', action='store_true')
     args = parser.parse_args()
     
     n_epochs = 1000
-    train_samples_per_epoch = 40000
+    train_samples_per_epoch = 100#40000
     valid_samples_per_epoch = 100
-    batch_size = 1
+    batch_size = 6
     max_sequence_length = 50
     
-    lm_train_dataset = TextDataset(args.lm_train_dataset, max_sequence_length)
-    lm_valid_dataset = TextDataset(args.lm_valid_dataset, max_sequence_length)
+    lm_train_vocab = None
+    if not args.character_level:
+        lm_train_dataset = TextDataset(args.lm_train_dataset, max_sequence_length)
+        lm_valid_dataset = TextDataset(args.lm_valid_dataset, max_sequence_length)
+        
+        if args.vocab_unk_rate == -1.0:
+            lm_train_dataset.unk_vocabulary_with_true_oov_rate(lm_valid_dataset)
+        elif args.vocab_unk_rate > 0:
+            lm_train_dataset.unk_vocabulary_with_oov_rate(args.vocab_unk_rate)
+        
+        lm_train_vocab = lm_train_dataset.vocabulary
     
-    if args.vocab_unk_rate == -1.0:
-        lm_train_dataset.unk_vocabulary_with_true_oov_rate(lm_valid_dataset)
-    elif args.vocab_unk_rate > 0:
-        lm_train_dataset.unk_vocabulary_with_oov_rate(args.vocab_unk_rate)
-    
-    train_dataset = SpeechDataset(args.train_dataset, vocabulary=lm_train_dataset.vocabulary)
-    valid_dataset = SpeechDataset(args.valid_dataset, vocabulary=lm_train_dataset.vocabulary)
+    train_dataset = SpeechDataset(args.train_dataset, vocabulary=lm_train_vocab, character_level=args.character_level)
+    valid_dataset = SpeechDataset(args.valid_dataset, vocabulary=lm_train_vocab, character_level=args.character_level)
     max_dataset_input_length = max(train_dataset.get_max_input_length(), valid_dataset.get_max_input_length())
     max_dataset_target_length = max(train_dataset.get_max_transcription_length(), valid_dataset.get_max_transcription_length())
     
@@ -72,7 +77,7 @@ if __name__ == '__main__':
     valid_dataset.set_transform(dataset_transformer)
     
     train_sampler = RandomSampler(train_dataset, replacement=True, num_samples=train_samples_per_epoch)
-    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler, num_workers=12, collate_fn=PadSequencesCollater())
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, sampler=train_sampler, num_workers=0, collate_fn=PadSequencesCollater())
     valid_sampler = RandomSampler(valid_dataset, replacement=True, num_samples=valid_samples_per_epoch)
     valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size, sampler=valid_sampler, num_workers=0, collate_fn=PadSequencesCollater())
     
@@ -137,7 +142,8 @@ if __name__ == '__main__':
                 
                 word_scores = model(model_inputs)
                 ctc_loss_input_length_dim = word_scores.size()[0]
-                ctc_loss_input_length = torch.LongTensor([ctc_loss_input_length_dim]).repeat(batch_size).cuda()
+                sample_batch_size = word_scores.size()[1]
+                ctc_loss_input_length = torch.LongTensor([ctc_loss_input_length_dim]).repeat(sample_batch_size).cuda()
                 
                 loss = loss_function(word_scores, model_targets, ctc_loss_input_length, model_target_lengths)
                 loss.backward()
@@ -177,7 +183,8 @@ if __name__ == '__main__':
                     
                     word_scores = model(model_inputs)
                     ctc_loss_input_length_dim = word_scores.size()[0]
-                    ctc_loss_input_length = torch.LongTensor([ctc_loss_input_length_dim]).repeat(batch_size).cuda()
+                    sample_batch_size = word_scores.size()[1]
+                    ctc_loss_input_length = torch.LongTensor([ctc_loss_input_length_dim]).repeat(sample_batch_size).cuda()
                     
                     loss = loss_function(word_scores, model_targets, ctc_loss_input_length, model_target_lengths)
                     

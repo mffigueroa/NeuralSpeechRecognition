@@ -155,27 +155,37 @@ class ResNet(nn.Module):
 
         self.inplanes = 64
         self.dilation = 1
-        if replace_stride_with_dilation is None:
+        self.replace_stride_with_dilation = replace_stride_with_dilation
+        if self.replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
             # the 2x2 stride with a dilated convolution instead
-            replace_stride_with_dilation = [False, False, False]
-        if len(replace_stride_with_dilation) != 3:
+            self.replace_stride_with_dilation = [False, False, False, False]
+        if len(self.replace_stride_with_dilation) != 4:
             raise ValueError("replace_stride_with_dilation should be None "
-                             "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
+                             "or a 4-element tuple, got {}".format(self.replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-        self.conv1 = nn.Conv1d(input_channels, self.inplanes, kernel_size=7, stride=2, padding=3,
-                               bias=False)
-        self.bn1 = norm_layer(self.inplanes)
-        self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
+        
+        if not self.replace_stride_with_dilation[0]:
+            self.conv1 = nn.Conv1d(input_channels, self.inplanes, kernel_size=7, stride=2, padding=3,
+                                bias=False)
+            self.bn1 = norm_layer(self.inplanes)
+            self.relu = nn.ReLU(inplace=True)
+            self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
+        else:
+            self.dilation = 2
+            self.conv1 = nn.Conv1d(input_channels, self.inplanes, kernel_size=7, stride=1, padding=self.dilation, dilation=self.dilation,
+                                bias=False)
+            self.bn1 = norm_layer(self.inplanes)
+            self.relu = nn.ReLU(inplace=True)
+        
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
-                                       dilate=replace_stride_with_dilation[0])
+                                       dilate=self.replace_stride_with_dilation[1])
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
-                                       dilate=replace_stride_with_dilation[1])
+                                       dilate=self.replace_stride_with_dilation[2])
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
-                                       dilate=replace_stride_with_dilation[2])
+                                       dilate=self.replace_stride_with_dilation[3])
         
         self.output_channels = 512 * block.expansion
         self.include_top = include_top
@@ -235,7 +245,9 @@ class ResNet(nn.Module):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
-        x = self.maxpool(x)
+        
+        if not self.replace_stride_with_dilation[0]:
+            x = self.maxpool(x)
 
         x = self.layer1(x)
         x = self.layer2(x)

@@ -146,7 +146,9 @@ class ResNet(nn.Module):
         replace_stride_with_dilation: Optional[List[bool]] = None,
         norm_layer: Optional[Callable[..., nn.Module]] = None,
         include_top: bool = True,
-        input_channels: int = 3
+        input_channels: int = 3,
+        remove_maxpool = False,
+        first_conv_stride = 2
     ) -> None:
         super(ResNet, self).__init__()
         if norm_layer is None:
@@ -167,17 +169,20 @@ class ResNet(nn.Module):
         self.base_width = width_per_group
         
         if not self.replace_stride_with_dilation[0]:
-            self.conv1 = nn.Conv1d(input_channels, self.inplanes, kernel_size=7, stride=2, padding=3,
+            self.conv1 = nn.Conv1d(input_channels, self.inplanes, kernel_size=7, stride=first_conv_stride, padding=3,
                                 bias=False)
             self.bn1 = norm_layer(self.inplanes)
             self.relu = nn.ReLU(inplace=True)
-            self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
         else:
             self.dilation = 2
             self.conv1 = nn.Conv1d(input_channels, self.inplanes, kernel_size=7, stride=1, padding=self.dilation, dilation=self.dilation,
                                 bias=False)
             self.bn1 = norm_layer(self.inplanes)
             self.relu = nn.ReLU(inplace=True)
+        
+        self.remove_maxpool = remove_maxpool
+        if not self.remove_maxpool:
+            self.maxpool = nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
         
         self.layer1 = self._make_layer(block, 64, layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
@@ -246,7 +251,7 @@ class ResNet(nn.Module):
         x = self.bn1(x)
         x = self.relu(x)
         
-        if not self.replace_stride_with_dilation[0]:
+        if not self.remove_maxpool:
             x = self.maxpool(x)
 
         x = self.layer1(x)

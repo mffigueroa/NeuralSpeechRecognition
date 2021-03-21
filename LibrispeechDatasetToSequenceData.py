@@ -5,6 +5,8 @@ import pickle
 from text_tokenizer import tokenize_line
 from audio_to_mfcc import audio_file_to_spectrogram, audio_file_to_mfcc
 from tqdm import tqdm
+import joblib
+from joblib import Parallel, delayed
 
 def get_librispeech_files(folder):
     transcription_for_folder = {}
@@ -30,14 +32,10 @@ args = parser.parse_args()
 
 transcription_for_folder, audio_files_in_folder = get_librispeech_files(args.librispeech_dir)
 
-transcription_for_audio_file = {}
-transcription_file_offset_for_audio_file = {}
+transcription_tokens_for_audio_file = {}
 for folder, transcription_file in tqdm(transcription_for_folder.items()):
-    for audio_file in audio_files_in_folder[folder]:
-        transcription_for_audio_file[audio_file] = transcription_file
     with open(transcription_file, 'r') as transcription_file_obj:
         while True:
-            file_offset = transcription_file_obj.tell()
             line = transcription_file_obj.readline()
             if len(line) < 1 or line is None:
                 break
@@ -47,8 +45,9 @@ for folder, transcription_file in tqdm(transcription_for_folder.items()):
             audio_file_id = line_split[0]
             audio_filename = f'{audio_file_id}.flac'
             audio_filepath = os.path.join(folder, audio_filename)
-            transcription_file_offset = file_offset + len(audio_file_id) + 1
-            transcription_file_offset_for_audio_file[audio_filepath] = transcription_file_offset
+            transcription_line = line[len(audio_file_id) + 1:].strip()
+            transcription_tokens = tokenize_line(transcription_line)
+            transcription_tokens_for_audio_file[audio_filepath] = transcription_tokens
 
 if args.frames_per_second is not None:
     samples_per_frame = 2048
@@ -61,18 +60,10 @@ else:
     sampling_rate = None
     frame_size = None
     frame_stride = None
-
-audio_spectrograms = []
-transcription_tokens = []
-for audio_file, transcription in tqdm(transcription_for_audio_file.items()):
-    with open(transcription, 'r') as transcription_file_obj:
-        transcription_file_offset = transcription_file_offset_for_audio_file[audio_file]
-        transcription_file_obj.seek(transcription_file_offset)
-        transcription_line = transcription_file_obj.readline()
-        tokens = tokenize_line(transcription_line)
-        spectrogram = audio_file_to_mfcc(audio_file, frame_size=frame_size, frame_stride=frame_stride, resampling_rate=sampling_rate)
-        transcription_tokens.append(tokens)
-        audio_spectrograms.append(spectrogram)
+    
+audio_file_keys = list(transcription_tokens_for_audio_file.keys())
+transcription_tokens = [ transcription_tokens_for_audio_file[audio_file] for audio_file in audio_file_keys ]
+audio_spectrograms = Parallel(n_jobs=24, verbose=10)(delayed(audio_file_to_mfcc)(audio_file, frame_size=frame_size, frame_stride=frame_stride, resampling_rate=sampling_rate) for audio_file in audio_file_keys)
 
 sequence_data = { 'audio_spectrograms' : audio_spectrograms, 'transcription_tokens' : transcription_tokens }
 
@@ -90,5 +81,5 @@ if args.show_length_histogram:
     plt.show()
 
 with open(args.output_path, 'wb') as output_file:
-    pickle.dump(sequence_data, output_file)
+    joblib.dump(sequence_data, output_file)
 

@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 import torch.nn.utils as utils
+import torchaudio
 
 class ToTensor(object):
     def __call__(self, sample):
@@ -36,6 +37,17 @@ class DeleteSequencePrefix(object):
         output[self.sample_key] = output[self.sample_key][self.units_to_delete:]
         return output
         
+class SpecAugment(object):
+    def __init__(self, sample_key, freq_mask_length, time_mask_length):
+        self.sample_key = sample_key
+        self.time_mask = torchaudio.transforms.TimeMasking(time_mask_length)
+        self.freq_mask = torchaudio.transforms.FrequencyMasking(freq_mask_length)
+    
+    def __call__(self, sample):
+        output = {**sample}
+        output[self.sample_key] = self.time_mask(self.freq_mask(output[self.sample_key]))
+        return output
+
 class DeleteSequenceSuffix(object):
     def __init__(self, sample_key, units_to_delete):
         self.sample_key = sample_key

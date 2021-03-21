@@ -9,7 +9,8 @@ class VocabularySpecialWords(Enum):
     UNK = 3
 
 class Vocabulary(object):
-    def __init__(self):
+    def __init__(self, custom_unk_word=None):
+        self.custom_unk_word = custom_unk_word
         self.word_frequency = Counter()
         self.unked_words = set()
         self.word_to_id = {}
@@ -42,6 +43,11 @@ class Vocabulary(object):
         total_known_words = int(known_word_rate * total_words)
         self.known_words = set(words_by_freq_desc[:total_known_words])
         self.unked_words = set(self.word_to_id.keys()).difference(self.known_words)
+        
+        if self.custom_unk_word is not None:
+            self.known_words = self.known_words.difference(self.custom_unk_word)
+            self.unked_words = self.unked_words.union(self.custom_unk_word)
+        
         self.remap_word_ids_after_unking()
     
     # After UNKing, ensure word IDs are in range [0, self.get_max_word_id() - 1]
@@ -78,6 +84,8 @@ class Vocabulary(object):
         elif id == VocabularySpecialWords.STOP.value:
             return '[STOP]'
         elif id == VocabularySpecialWords.UNK.value:
+            if self.custom_unk_word is not None:
+                return self.custom_unk_word
             return '[UNK]'
         else:
             import pdb; pdb.set_trace()

@@ -44,7 +44,7 @@ class ResNet_AcousticModel(nn.Module):
         self.spectral_filter_dims = spectral_filter_dims
         
         input_channels = self.spectral_filter_dims
-        self.backbone = resnet_backbone(include_top=False, norm_layer=GroupNormWrapper, input_channels=input_channels, zero_init_residual=True, replace_stride_with_dilation=[True,True,True,True])
+        self.backbone = resnet_backbone(include_top=False, norm_layer=GroupNormWrapper, input_channels=input_channels, zero_init_residual=True, replace_stride_with_dilation=[False,False,False,False], remove_maxpool=True, first_conv_stride=1)
         self.backbone_output_channels = self.backbone.get_output_channels()
         
         if self.bottleneck_size > 0:

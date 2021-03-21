@@ -3,8 +3,8 @@ import librosa
 
 import code
 
-def audio_file_to_mfcc(file_path, frame_size=None, frame_stride=None, mean_normalized=None, resampling_rate=None):
-    mean_normalized = mean_normalized or True
+def audio_file_to_mfcc(file_path, frame_size=None, frame_stride=None, normalized=None, resampling_rate=None):
+    normalized = normalized or True
     frame_size = frame_size or 0.025 # 25 ms windows, aka window length
     frame_stride = frame_stride or 0.01 # 10 ms window stride, aka hop_length
     
@@ -20,15 +20,16 @@ def audio_file_to_mfcc(file_path, frame_size=None, frame_stride=None, mean_norma
     signal_y_preem = librosa.effects.preemphasis(signal_y)
     
     mfcc = librosa.feature.mfcc(y=signal_y_preem, sr=sample_rate, win_length=win_length, hop_length=hop_length, n_mfcc=13, window='hamming')
-    if not mean_normalized:
+    if not normalized:
         return mfcc
     else:
         mfcc_mean = np.mean(mfcc, axis=0, keepdims=True)
-        mfcc_normed = mfcc - mfcc_mean
+        mfcc_std = np.std(mfcc, axis=0, keepdims=True)
+        mfcc_normed = (mfcc - mfcc_mean) / (mfcc_std + 1e-8)
         return mfcc_normed
 
-def audio_file_to_spectrogram(file_path, frame_size=None, frame_stride=None, mean_normalized=None, num_filters=None, resampling_rate=None):
-    mean_normalized = mean_normalized or True
+def audio_file_to_spectrogram(file_path, frame_size=None, frame_stride=None, normalized=None, num_filters=None, resampling_rate=None):
+    normalized = normalized or True
     frame_size = frame_size or 0.025 # 25 ms windows, aka window length
     frame_stride = frame_stride or (frame_size / 2.5) # 10 ms window stride, aka hop_length
     num_filters = num_filters or 40
@@ -47,11 +48,12 @@ def audio_file_to_spectrogram(file_path, frame_size=None, frame_stride=None, mea
     spectrogram = librosa.feature.melspectrogram(y=signal_y_preem, sr=sample_rate, win_length=win_length, hop_length=hop_length, n_mels=num_filters, window='hamming')
     total_frames = spectrogram.shape[1]
     effective_frames_per_second = total_frames / signal_length
-    if not mean_normalized:
+    if not normalized:
         return spectrogram
     else:
         spectrogram_mean = np.mean(spectrogram, axis=0, keepdims=True)
-        spectrogram_normed = spectrogram - spectrogram_mean
+        spectrogram_std = np.std(spectrogram, axis=0, keepdims=True)
+        spectrogram_normed = (spectrogram - spectrogram_mean) / (spectrogram_std + 1e-8)
         return spectrogram_normed
 
 if __name__ == '__main__':

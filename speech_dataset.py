@@ -2,16 +2,21 @@ import os
 import nltk
 import nltk.tokenize
 import pickle
+import joblib
 import re
 from vocabulary import Vocabulary
 from torch.utils.data import Dataset
 import numpy as np
+import cmudict
+import functools
 
 class SpeechDataset(Dataset):
-    def __init__(self, data_file, character_level=None, vocabulary=None, transform=None):
+    def __init__(self, data_file, character_level=None, phoneme_level=None, vocabulary=None, transform=None):
         self.data_file = data_file
-        self.data = pickle.load(open(self.data_file, 'rb'))
+        self.data = joblib.load(open(self.data_file, 'rb'))
         self.character_level = character_level
+        self.phoneme_level = phoneme_level
+        self.transcription_processor = lambda words: words
         
         if self.character_level:
             characters = [ chr(c) for c in range(ord('a'),ord('z')+1) ]
@@ -20,6 +25,16 @@ class SpeechDataset(Dataset):
             for character in characters:
                 character_vocab.add_word(character)
             self.vocabulary = character_vocab
+            self.transcription_processor = self._character_level_transcription_processor
+        elif self.phoneme_level:
+            cmu_phones = list(map(lambda x: x[0], cmudict.phones()))
+            cmu_phones += [ ' ' ]
+            phones_vocab = Vocabulary(custom_unk_word=' ')
+            for phone in cmu_phones:
+                phones_vocab.add_word(phone)
+            self.vocabulary = phones_vocab
+            self.phones_dict = cmudict.dict()
+            self.transcription_processor = self._phone_level_transcription_processor
         elif vocabulary is None:
             data_file_dir = os.path.dirname(self.data_file)
             data_file_prefix = os.path.splitext(self.data_file)[0]
@@ -37,6 +52,19 @@ class SpeechDataset(Dataset):
         self.max_transcription_length = max([len(transcription) for transcription in self.data['transcription_tokens']])
         self.max_input_length = max([spectrogram.shape[1] for spectrogram in self.data['audio_spectrograms']])
     
+    def _character_level_transcription_processor(self, words):
+        return list(' '.join(words).lower())
+    
+    def _phone_level_transcription_processor(self, words):
+        phones = map(self.phones_dict.get, words)
+        phones = filter(lambda phone_list: phone_list is not None, phones) # drop unknown words
+        phones = map(lambda phone_list: phone_list[0], phones)
+        phones = functools.reduce(lambda phone_list,phone: phone_list+phone, phones, [])
+        
+        remove_numerals = lambda phone: ''.join(filter(lambda character: character.isalpha(), phone))
+        phones = map(remove_numerals, phones)
+        return list(phones)
+    
     def set_transform(self, transform):
         self.transform = transform
     
@@ -52,8 +80,7 @@ class SpeechDataset(Dataset):
     def __getitem__(self, idx):
         words = self.data['transcription_tokens'][idx]
         spectral_features = self.data['audio_spectrograms'][idx]
-        if self.character_level:
-            words = list(' '.join(words).lower())
+        words = self.transcription_processor(words)
         sequence_words = self.vocabulary.sentence_to_tokens(words)
         sample = {'dataset_idx': np.array([idx]), 'target' : sequence_words, 'input' : spectral_features}
         if self.transform is not None:
@@ -64,7 +91,7 @@ class SpeechDataset(Dataset):
         self.vocabulary = dataset.vocabulary
     
     def build_vocabulary_from_dataset(self, data):
-        vocabulary = Vocabulary()
+        vocabulary = Vocabulary(custom_unk_word=' ')
         for transcription in data['transcription_tokens']:
             for word in transcription:
                 vocabulary.add_word(word)

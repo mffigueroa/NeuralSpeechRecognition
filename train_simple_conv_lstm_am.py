@@ -53,6 +53,7 @@ def get_model_weight_files(dir):
     weight_files = {}
     weight_file_prefix = 'model_epoch_'
     val_loss_suffix = '_val_'
+    files = os.listdir(dir)
     for file in files:
         if not str_begins_with(file, weight_file_prefix):
             continue
@@ -61,12 +62,14 @@ def get_model_weight_files(dir):
         filename_ext = filename_parts[1]
         if not filename_ext.lower() == '.pth':
             continue
-        model_suffix = re.sub(r'model_epoch_\d+_', '', filename_without_ext)
-        file_wo_suffix = filename_without_ext[:-len(model_suffix)]
-        epoch_num_str = re.sub(r'model_epoch_(\d+)_', r'\1', file_wo_suffix)
-        epoch_num = int(epoch_num_str)
-        val_loss_str = model_suffix[model_suffix.index(val_loss_suffix)+len(val_loss_suffix):]
+        model_suffix_w_loss = re.sub(r'model_epoch_\d+_', '', filename_without_ext)
+        file_wo_suffix = filename_without_ext[:-len(model_suffix_w_loss)]
+        val_loss_index = model_suffix_w_loss.index(val_loss_suffix)
+        val_loss_str = model_suffix_w_loss[val_loss_index+len(val_loss_suffix):]
+        model_suffix = model_suffix_w_loss[:val_loss_index]
         val_loss = float(val_loss_str)
+        epoch_num_str = re.sub(r'model_epoch_(\d+)_', r'\1', file_wo_suffix)
+        epoch_num = int(epoch_num_str) - 1
         file_fullpath = os.path.join(dir, file)
         if not model_suffix in weight_files:
             weight_files[model_suffix] = {}
@@ -95,6 +98,11 @@ if __name__ == '__main__':
     valid_samples_per_epoch = 500
     batch_size = 24
     max_sequence_length = 50
+    
+    logfile_prefix = os.path.splitext(args.log_file)[0]
+    logfile_dir = os.path.dirname(args.log_file)
+    
+    weight_files = get_model_weight_files(logfile_dir)
     
     lm_train_vocab = None
     if not args.character_level and not args.phoneme_level:
@@ -142,11 +150,6 @@ if __name__ == '__main__':
     learning_rates = 10.**np.arange(-5,-2)
     hyperparameters_tried = set()
     
-    logfile_prefix = os.path.splitext(args.log_file)[0]
-    logfile_dir = os.path.dirname(args.log_file)
-    
-    weight_files = get_model_weight_files(logfile_dir)
-    
     while True:
         random_bottleneck_size = np.random.choice(bottleneck_size)
         random_learning_rate = 1e-5#np.random.choice(learning_rates)
@@ -176,9 +179,9 @@ if __name__ == '__main__':
         
         if model_suffix in weight_files:
             largest_epoch_of_weights = max(weight_files[model_suffix].keys())
-            first_epoch = largest_epoch_of_weights
-            weight_file_path = weight_files[model_suffix][largest_epoch_of_weights]
-            epoch_checkpoint = torch.load(weight_file_path)
+            first_epoch = largest_epoch_of_weights + 1
+            weight_file_path = weight_files[model_suffix][largest_epoch_of_weights]['full_path']
+            epoch_checkpoint = torch.load(open(weight_file_path, 'rb'))
             model.load_state_dict(epoch_checkpoint['model_state_dict'])
             optimizer.load_state_dict(epoch_checkpoint['optimizer_state_dict'])
             

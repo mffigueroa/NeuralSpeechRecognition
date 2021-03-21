@@ -217,11 +217,13 @@ if __name__ == '__main__':
             warmup_last_step = first_epoch * steps_per_epoch
             
         warmup_scheduler = lr_warmup.UntunedLinearWarmup(optimizer, last_step=warmup_last_step)
+        lr_scheduler.step(first_epoch)
         for epoch in range(first_epoch, n_epochs):
             train_number_of_words = 0
             batches_loop = tqdm(train_dataloader)
             total_train_loss = 0
             num_train_batches = 0
+            print(f'\nLearning rate: {get_lr(optimizer)}')
             
             num_batch_exceptions = 0
             for batch_sample in batches_loop:

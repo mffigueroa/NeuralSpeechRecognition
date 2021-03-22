@@ -39,15 +39,7 @@ class TextDataset(Dataset):
         sequence_comma_separated = self.sequence_list_fileobj.read(sequence_length)
         sequence_words = sequence_comma_separated.strip().split(',')
         
-        if len(sequence_words) != self.expected_sequence_length:
-            sequence_list_filename = os.path.split(self.sequence_list_file)[-1]
-            print(f'Hit bad sequence length of {len(sequence_words)} at index {idx} for file {sequence_list_filename}')
-            current_num_sequences = len(self)
-            del self.sequence_delimiters[idx]
-            if idx < current_num_sequences - 1:
-                return self[idx]
-            else:
-                return self[idx-1]
+        assert len(sequence_words) == self.expected_sequence_length
         
         sequence_words = self.vocabulary.sentence_to_tokens(sequence_words)
         sample = {'dataset_idx': np.array([idx]), 'words' : sequence_words}

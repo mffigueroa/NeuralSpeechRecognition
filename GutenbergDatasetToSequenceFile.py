@@ -44,3 +44,4 @@ with open(args.output_path, 'w', encoding='utf-8') as output_file:
                     if output_csv_row.count(',') != args.max_sequence_length - 1:
                         import pdb; pdb.set_trace()
                     output_file.write(output_csv_row + '\n')
+
